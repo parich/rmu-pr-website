@@ -3,7 +3,7 @@
  * Plugin Name:       RMU PR Website
  * Plugin URI:        https://github.com/parich/rmu-pr-website
  * Description:       แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Mr.Parich Suriya
@@ -199,7 +199,22 @@ function rmu_pr_website_settings_page()
 					<td>
 						<input type="text" name="rmu_pr_website_category_slugs"
 							value="<?php echo esc_attr(get_option('rmu_pr_website_category_slugs', '')); ?>" />
-						<p class="description">ใส่ slug หมวดหมู่ (คั่นด้วย comma เช่น news,activity,announce)</p>
+						<p class="description">
+							ใส่ slug หมวดหมู่ คั่นด้วย comma เช่น <code>news,activity,announce</code> หรือภาษาไทย เช่น
+							<code>ภาพกิจกรรม,จดหมายข่าวพระวรุณ,ข่าวประชาสัมพันธ์,ประกาศ</code><br>
+							<strong>slug คืออะไร?</strong> คือค่าในฟิลด์ <code>"slug"</code> ของหมวดหมู่ใน WordPress
+							อาจเป็นภาษาอังกฤษหรือภาษาไทยก็ได้ ขึ้นอยู่กับที่เว็บต้นทางตั้งไว้<br>
+							<strong>วิธีดู slug จริง:</strong> เปิดลิงก์ใดลิงก์หนึ่ง แล้วดูค่า <code>"slug"</code>
+							ของแต่ละหมวด<br>
+							&bull; <a
+								href="<?php echo esc_url(rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/')); ?>/wp-json/wp/v2/categories?per_page=100"
+								target="_blank"><code><?php echo esc_html(rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/')); ?>/wp-json/wp/v2/categories?per_page=100</code></a>
+							(pretty URL)<br>
+							&bull; <a
+								href="<?php echo esc_url(rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/')); ?>/?rest_route=/wp/v2/categories&per_page=100"
+								target="_blank"><code><?php echo esc_html(rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/')); ?>/?rest_route=/wp/v2/categories&amp;per_page=100</code></a>
+							(fallback)
+						</p>
 					</td>
 				</tr>
 				<tr valign="top">
@@ -331,11 +346,11 @@ class RMU_PR_GitHub_Updater
 			}
 
 			$transient->response[$this->plugin_basename] = (object) [
-				'slug'        => $this->slug,
-				'plugin'      => $this->plugin_basename,
+				'slug' => $this->slug,
+				'plugin' => $this->plugin_basename,
 				'new_version' => $remote_version,
-				'url'         => $release->html_url,
-				'package'     => $download_url,
+				'url' => $release->html_url,
+				'package' => $download_url,
 			];
 		}
 
@@ -366,16 +381,16 @@ class RMU_PR_GitHub_Updater
 		}
 
 		return (object) [
-			'name'          => 'RMU PR Website',
-			'slug'          => $this->slug,
-			'version'       => $remote_version,
-			'author'        => '<a href="https://github.com/parich">Mr.Parich Suriya</a>',
-			'homepage'      => "https://github.com/{$this->github_owner}/{$this->github_repo}",
-			'requires'      => '6.7',
-			'requires_php'  => '7.4',
-			'sections'      => [
+			'name' => 'RMU PR Website',
+			'slug' => $this->slug,
+			'version' => $remote_version,
+			'author' => '<a href="https://github.com/parich">Mr.Parich Suriya</a>',
+			'homepage' => "https://github.com/{$this->github_owner}/{$this->github_repo}",
+			'requires' => '6.7',
+			'requires_php' => '7.4',
+			'sections' => [
 				'description' => 'แสดงข่าวจากเว็บไซต์ PR มหาวิทยาลัยราชมงคลมหานคร',
-				'changelog'   => nl2br(esc_html($release->body ?? '')),
+				'changelog' => nl2br(esc_html($release->body ?? '')),
 			],
 			'download_link' => $download_url,
 		];
