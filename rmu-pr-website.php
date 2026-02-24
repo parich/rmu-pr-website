@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name:       RMU PR Website
+ * Plugin URI:        https://github.com/parich/rmu-pr-website
  * Description:       แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.
  * Version:           0.1.0
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Mr.Parich Suriya
+ * Author URI:        https://github.com/parich
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       rmu-pr-website
