@@ -3,6 +3,35 @@ import dompurify from "dompurify";
 const CATEGORY_SLUGS = window.POSTS_PR_RMU_DATA?.categorySlugs || [];
 const BASE_URL = window.POSTS_PR_RMU_DATA?.baseUrl || "https://pr.rmu.ac.th/";
 
+// ตรวจสอบว่า REST API ใช้ pretty URL หรือ ?rest_route= (cache ผลไว้ไม่ต้องเช็คซ้ำ)
+let useRestRoute = null;
+
+async function detectApiStyle() {
+	if (useRestRoute !== null) return;
+	const prettyUrl = `${BASE_URL}wp-json/wp/v2/posts?per_page=1`;
+	try {
+		const res = await fetch(prettyUrl);
+		const contentType = res.headers.get("content-type") || "";
+		if (res.ok && contentType.includes("json")) {
+			useRestRoute = false;
+		} else {
+			useRestRoute = true;
+		}
+	} catch {
+		useRestRoute = true;
+	}
+}
+
+function buildApiUrl(path, params = {}) {
+	const base = BASE_URL.replace(/\/$/, "");
+	const qs = new URLSearchParams(params).toString();
+	const queryString = qs ? `&${qs}` : "";
+	if (useRestRoute) {
+		return `${base}/?rest_route=/wp/v2/${path}${queryString}`;
+	}
+	return `${base}/wp-json/wp/v2/${path}?${qs}`;
+}
+
 const allSearchResults = document.querySelectorAll(".our-search");
 
 allSearchResults.forEach((el) => bringSearchToLife(el));
@@ -76,15 +105,20 @@ async function fetchAndRenderPosts(
 	paginationContainer,
 ) {
 	try {
+		await detectApiStyle();
 		const catId = await getCategoryIdBySlug(slug);
 		if (!catId) {
 			container.innerHTML = "ไม่พบหมวดหมู่";
 			return;
 		}
 
-		const query = `${BASE_URL}wp-json/wp/v2/posts?categories=${catId}&search=${encodeURIComponent(
-			searchTerm,
-		)}&page=${page}&per_page=8&_embed`;
+		const query = buildApiUrl("posts", {
+			categories: catId,
+			search: searchTerm,
+			page,
+			per_page: 8,
+			_embed: 1,
+		});
 
 		const res = await fetch(query);
 		const posts = await res.json();
@@ -112,9 +146,8 @@ async function fetchAndRenderPosts(
 }
 
 async function getCategoryIdBySlug(slug) {
-	const res = await fetch(
-		`${BASE_URL}wp-json/wp/v2/categories?slug=${encodeURIComponent(slug)}`,
-	);
+	const url = buildApiUrl("categories", { slug });
+	const res = await fetch(url);
 	const categories = await res.json();
 	return categories[0]?.id || null;
 }
