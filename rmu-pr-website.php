@@ -3,7 +3,7 @@
  * Plugin Name:       RMU PR Website
  * Plugin URI:        https://github.com/parich/rmu-pr-website
  * Description:       แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.
- * Version:           0.1.1
+ * Version:           0.1.2
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Mr.Parich Suriya
@@ -65,17 +65,19 @@ add_action('init', 'create_block_rmu_pr_website_block_init');
 function rmu_pr_website_enqueue_assets()
 {
 	if (is_singular() && has_shortcode(get_post()->post_content, 'rmu_pr_website')) {
+		// ใช้ version ตามเนื้อหาไฟล์ (?ver=) เพื่อให้ browser โหลดไฟล์ใหม่ทุกครั้งที่ build ใหม่ ไม่ติด cache ตัวเก่า
+		$view_asset = include __DIR__ . '/build/rmu-pr-website/view.asset.php';
 		wp_enqueue_style(
 			'rmu-pr-website-style',
 			plugins_url('build/rmu-pr-website/style-index.css', __FILE__),
 			array(),
-			'1.0'
+			filemtime(__DIR__ . '/build/rmu-pr-website/style-index.css')
 		);
 		wp_enqueue_script(
 			'rmu-pr-website-view',
 			plugins_url('build/rmu-pr-website/view.js', __FILE__),
-			array(),
-			'1.0',
+			$view_asset['dependencies'],
+			$view_asset['version'],
 			true
 		);
 
@@ -222,8 +224,13 @@ function rmu_pr_website_settings_page()
 					<td>
 						<input type="text" name="rmu_pr_website_base_url"
 							value="<?php echo esc_attr(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/')); ?>" />
-						<p class="description">URL หลัก เช่น https://pr.rmu.ac.th/ สำคัญตรวจสอบเว็บไซต์ wordpress
-							ต้นทางก่อนว่าเปิดให้โดยเข้า https://pr.rmu.ac.th/wp-json/wp/v2/posts/ ถ้ามี response ใช้ได้</p>
+						<?php $check_url = rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/') . '/?rest_route=/wp/v2/posts&per_page=1&_fields=id,link,title'; ?>
+						<p class="description">
+							URL หลักของเว็บ WordPress ต้นทาง เช่น <code>https://pr.rmu.ac.th/</code><br>
+							<strong>วิธีตรวจสอบ:</strong> เปิดลิงก์ด้านล่าง ถ้าเห็นข้อมูล JSON (ขึ้นต้นด้วย <code>[</code>) แสดงว่าใช้ได้
+							(ใช้ได้ทุกการตั้งค่า Permalink รวมถึงแบบ Plain <code>?p=123</code>)<br>
+							&bull; <a href="<?php echo esc_url($check_url); ?>" target="_blank"><code><?php echo esc_html($check_url); ?></code></a>
+						</p>
 					</td>
 				</tr>
 			</table>

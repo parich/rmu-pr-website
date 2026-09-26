@@ -3,33 +3,29 @@ import dompurify from "dompurify";
 const CATEGORY_SLUGS = window.POSTS_PR_RMU_DATA?.categorySlugs || [];
 const BASE_URL = window.POSTS_PR_RMU_DATA?.baseUrl || "https://pr.rmu.ac.th/";
 
-// ตรวจสอบว่า REST API ใช้ pretty URL หรือ ?rest_route= (cache ผลไว้ไม่ต้องเช็คซ้ำ)
-let useRestRoute = null;
+// ดึงเฉพาะฟิลด์ที่การ์ดใช้ ห้ามดึง content: ถ้าเว็บต้นทางใช้ Elementor จะพิมพ์ <style> ออกมาก่อน JSON
+// ทำให้ parse ไม่ได้ และ header X-WP-TotalPages / Access-Control-Allow-Origin ถูกส่งไม่ออก (browser บล็อก CORS)
+// ต้องมี _links และ _embedded ด้วย ไม่งั้น _embed จะไม่ทำงาน
+const POST_FIELDS = "id,link,title,excerpt,_links,_embedded";
 
-async function detectApiStyle() {
-	if (useRestRoute !== null) return;
-	const prettyUrl = `${BASE_URL}wp-json/wp/v2/posts?per_page=1`;
-	try {
-		const res = await fetch(prettyUrl);
-		const contentType = res.headers.get("content-type") || "";
-		if (res.ok && contentType.includes("json")) {
-			useRestRoute = false;
-		} else {
-			useRestRoute = true;
-		}
-	} catch {
-		useRestRoute = true;
-	}
-}
+// cache id ของหมวดหมู่ ไม่ต้องยิง request ซ้ำทุกครั้งที่พิมพ์ค้นหาหรือเปลี่ยนหน้า
+// (ต้องประกาศก่อน bringSearchToLife ถูกเรียกด้านล่าง)
+const categoryIdCache = new Map();
 
+// ใช้ ?rest_route= เสมอ เพราะใช้ได้ทุก Permalink รวมถึงแบบ Plain (?p=123)
+// ส่วน /wp-json/ ใช้ได้เฉพาะเว็บที่ตั้ง Permalink แบบ pretty URL
 function buildApiUrl(path, params = {}) {
 	const base = BASE_URL.replace(/\/$/, "");
 	const qs = new URLSearchParams(params).toString();
-	const queryString = qs ? `&${qs}` : "";
-	if (useRestRoute) {
-		return `${base}/?rest_route=/wp/v2/${path}${queryString}`;
+	return `${base}/?rest_route=/wp/v2/${path}${qs ? `&${qs}` : ""}`;
+}
+
+async function fetchJson(url) {
+	const res = await fetch(url);
+	if (!res.ok) {
+		throw new Error(`HTTP ${res.status} ${url}`);
 	}
-	return `${base}/wp-json/wp/v2/${path}?${qs}`;
+	return { data: await res.json(), res };
 }
 
 const allSearchResults = document.querySelectorAll(".our-search");
@@ -105,7 +101,6 @@ async function fetchAndRenderPosts(
 	paginationContainer,
 ) {
 	try {
-		await detectApiStyle();
 		const catId = await getCategoryIdBySlug(slug);
 		if (!catId) {
 			container.innerHTML = "ไม่พบหมวดหมู่";
@@ -117,12 +112,12 @@ async function fetchAndRenderPosts(
 			search: searchTerm,
 			page,
 			per_page: 8,
-			_embed: 1,
+			_embed: "wp:featuredmedia",
+			_fields: POST_FIELDS,
 		});
 
-		const res = await fetch(query);
-		const posts = await res.json();
-		const totalPages = parseInt(res.headers.get("X-WP-TotalPages"));
+		const { data: posts, res } = await fetchJson(query);
+		const totalPages = parseInt(res.headers.get("X-WP-TotalPages")) || 1;
 
 		if (posts.length) {
 			container.innerHTML = generateHTML(posts);
@@ -145,11 +140,15 @@ async function fetchAndRenderPosts(
 	}
 }
 
-async function getCategoryIdBySlug(slug) {
-	const url = buildApiUrl("categories", { slug });
-	const res = await fetch(url);
-	const categories = await res.json();
-	return categories[0]?.id || null;
+function getCategoryIdBySlug(slug) {
+	if (!categoryIdCache.has(slug)) {
+		const url = buildApiUrl("categories", { slug, _fields: "id" });
+		const promise = fetchJson(url).then(({ data }) => data[0]?.id || null);
+		// ถ้า error ให้ลบออกจาก cache เพื่อลองใหม่ครั้งถัดไป
+		promise.catch(() => categoryIdCache.delete(slug));
+		categoryIdCache.set(slug, promise);
+	}
+	return categoryIdCache.get(slug);
 }
 
 function generateHTML(posts) {
