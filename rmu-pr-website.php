@@ -3,7 +3,7 @@
  * Plugin Name:       RMU PR Website
  * Plugin URI:        https://github.com/parich/rmu-pr-website
  * Description:       แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.
- * Version:           0.1.2
+ * Version:           0.1.3
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Mr.Parich Suriya
@@ -61,44 +61,51 @@ function create_block_rmu_pr_website_block_init()
 }
 add_action('init', 'create_block_rmu_pr_website_block_init');
 
+// handle ของ view.js ที่ WordPress ลงทะเบียนให้จาก block.json ใช้ตัวเดียวกันทั้ง block และ shortcode
+// เพื่อให้ทั้งสองแบบได้ข้อมูลตั้งค่าชุดเดียวกัน และ view.js ไม่ถูกโหลดซ้ำเมื่อหน้าเดียวกันมีทั้งสองแบบ
+function rmu_pr_website_view_script_handle()
+{
+	return generate_block_asset_handle('create-block/rmu-pr-website', 'viewScript');
+}
+
 // ฟังก์ชันนี้ใช้สำหรับการโหลดไฟล์ JavaScript และ CSS ที่จำเป็นสำหรับ block
 function rmu_pr_website_enqueue_assets()
 {
+	// ใช้ version ตามเนื้อหาไฟล์ (?ver=) เพื่อให้ browser โหลดไฟล์ใหม่ทุกครั้งที่ build ใหม่ ไม่ติด cache ตัวเก่า
+	wp_register_style(
+		'rmu-pr-website-style',
+		plugins_url('build/rmu-pr-website/style-index.css', __FILE__),
+		array(),
+		filemtime(__DIR__ . '/build/rmu-pr-website/style-index.css')
+	);
+
+	// ดึงค่าตัวเลือกจากฐานข้อมูล
+	$category_slugs = get_option('rmu_pr_website_category_slugs', '');
+	$base_url = get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/');
+	// แปลง category slugs เป็น array ของ object [{slug:..., name:...}, ...]
+	$cats = array_filter(array_map('trim', explode(',', $category_slugs)));
+	$cat_objs = array();
+	foreach ($cats as $cat) {
+		$cat_objs[] = array('slug' => $cat, 'name' => $cat);
+	}
+	// ส่งข้อมูลไปยัง JavaScript — ผูกไว้กับ handle ของ block เสมอ ข้อมูลจะถูกพิมพ์ออกเฉพาะหน้าที่ enqueue view.js จริง
+	wp_localize_script(rmu_pr_website_view_script_handle(), 'POSTS_PR_RMU_DATA', array(
+		'categorySlugs' => $cat_objs,
+		'baseUrl' => $base_url,
+	));
+
+	// หน้าที่รู้ล่วงหน้าว่ามี shortcode ให้โหลดตั้งแต่ <head> กันหน้ากระพริบตอน CSS มาช้า
 	if (is_singular() && has_shortcode(get_post()->post_content, 'rmu_pr_website')) {
-		// ใช้ version ตามเนื้อหาไฟล์ (?ver=) เพื่อให้ browser โหลดไฟล์ใหม่ทุกครั้งที่ build ใหม่ ไม่ติด cache ตัวเก่า
-		$view_asset = include __DIR__ . '/build/rmu-pr-website/view.asset.php';
-		wp_enqueue_style(
-			'rmu-pr-website-style',
-			plugins_url('build/rmu-pr-website/style-index.css', __FILE__),
-			array(),
-			filemtime(__DIR__ . '/build/rmu-pr-website/style-index.css')
-		);
-		wp_enqueue_script(
-			'rmu-pr-website-view',
-			plugins_url('build/rmu-pr-website/view.js', __FILE__),
-			$view_asset['dependencies'],
-			$view_asset['version'],
-			true
-		);
-
-		// ดึงค่าตัวเลือกจากฐานข้อมูล
-		$category_slugs = get_option('rmu_pr_website_category_slugs', '');
-		$base_url = get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/');
-		// แปลง category slugs เป็น array ของ object [{slug:..., name:...}, ...]
-		$cats = array_filter(array_map('trim', explode(',', $category_slugs)));
-		$cat_objs = array();
-		foreach ($cats as $cat) {
-			$cat_objs[] = array('slug' => $cat, 'name' => $cat);
-		}
-		// ส่งข้อมูลไปยัง JavaScript
-		wp_localize_script('rmu-pr-website-view', 'POSTS_PR_RMU_DATA', array(
-			'categorySlugs' => $cat_objs,
-			'baseUrl' => $base_url,
-		));
-
+		rmu_pr_website_enqueue_shortcode_assets();
 	}
 }
 add_action('wp_enqueue_scripts', 'rmu_pr_website_enqueue_assets');
+
+function rmu_pr_website_enqueue_shortcode_assets()
+{
+	wp_enqueue_style('rmu-pr-website-style');
+	wp_enqueue_script(rmu_pr_website_view_script_handle());
+}
 
 
 /**
@@ -106,6 +113,10 @@ add_action('wp_enqueue_scripts', 'rmu_pr_website_enqueue_assets');
  */
 function rmu_pr_website_shortcode($atts)
 {
+	// enqueue ตอน shortcode ทำงานจริง จึงใช้ได้ทุกที่ (widget, Elementor Theme Builder/popup, หน้า archive)
+	// ถ้าเลย <head> ไปแล้ว WordPress จะพิมพ์ CSS/JS ไว้ใน footer แทน
+	rmu_pr_website_enqueue_shortcode_assets();
+
 	ob_start();
 	$render_file = plugin_dir_path(__FILE__) . 'build/rmu-pr-website/render.php';
 	if (file_exists($render_file)) {
@@ -116,6 +127,27 @@ function rmu_pr_website_shortcode($atts)
 	return ob_get_clean();
 }
 add_shortcode('rmu_pr_website', 'rmu_pr_website_shortcode');
+
+// ค่าเริ่มต้นของสี ใช้ร่วมกันทั้งฟอร์ม, ปุ่ม Reset, sanitize และ CSS หน้าเว็บ
+// ต้องเป็น hex 6 หลัก เพราะ <input type="color"> ไม่รับรูปแบบอื่น (#eee จะแสดงเป็นสีดำ)
+function rmu_pr_website_color_defaults()
+{
+	return array(
+		'rmu_pr_website_tab_active_color' => '#e0ecff',
+		'rmu_pr_website_tab_text_color' => '#2874fc',
+		'rmu_pr_website_pagination_bg' => '#eeeeee',
+		'rmu_pr_website_pagination_hover' => '#d0e2ff',
+		'rmu_pr_website_pagination_active' => '#e0ecff',
+		'rmu_pr_website_pagination_active_text' => '#2874fc',
+	);
+}
+
+// อ่านค่าสีโดยรับประกันว่าเป็น hex เสมอ (ค่าที่ไม่ถูกต้องใช้ค่าเริ่มต้นแทน) จึงพิมพ์ลง <style> ได้ปลอดภัย
+function rmu_pr_website_get_color($option)
+{
+	$defaults = rmu_pr_website_color_defaults();
+	return sanitize_hex_color(get_option($option, '')) ?: $defaults[$option];
+}
 
 add_action('admin_menu', function () {
 	add_options_page(
@@ -129,14 +161,11 @@ add_action('admin_menu', function () {
 
 function rmu_pr_website_settings_page()
 {
-	// ตรวจสอบการกดปุ่ม Reset
-	if (isset($_POST['rmu_pr_website_reset_defaults'])) {
-		update_option('rmu_pr_website_tab_active_color', '#e0ecff');
-		update_option('rmu_pr_website_tab_text_color', '#2874fc');
-		update_option('rmu_pr_website_pagination_bg', '#2874fc');
-		update_option('rmu_pr_website_pagination_hover', '#d0e2ff');
-		update_option('rmu_pr_website_pagination_active', '#e0ecff');
-		update_option('rmu_pr_website_pagination_active_text', '#2874fc');
+	// ตรวจสอบการกดปุ่ม Reset (ต้องผ่าน nonce กันเว็บอื่นส่ง form มาแทน admin ที่ login อยู่)
+	if (isset($_POST['rmu_pr_website_reset_defaults']) && check_admin_referer('rmu_pr_website_reset_defaults')) {
+		foreach (rmu_pr_website_color_defaults() as $option => $default) {
+			update_option($option, $default);
+		}
 		echo '<div class="notice notice-success is-dismissible"><p>รีเซ็ตค่าสำเร็จ</p></div>';
 	}
 	?>
@@ -158,42 +187,42 @@ function rmu_pr_website_settings_page()
 					<th scope="row">Tab Active Color</th>
 					<td>
 						<input type="color" name="rmu_pr_website_tab_active_color"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_tab_active_color', '#e0ecff')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_tab_active_color')); ?>">
 					</td>
 				</tr>
 				<tr>
 					<th scope="row">Tab Text Color</th>
 					<td>
 						<input type="color" name="rmu_pr_website_tab_text_color"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_tab_text_color', '#2874fc')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_tab_text_color')); ?>">
 					</td>
 				</tr>
 				<tr>
 					<th scope="row">Pagination Background</th>
 					<td>
 						<input type="color" name="rmu_pr_website_pagination_bg"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_pagination_bg', '#eee')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_bg')); ?>">
 					</td>
 				</tr>
 				<tr>
 					<th scope="row">Pagination Hover</th>
 					<td>
 						<input type="color" name="rmu_pr_website_pagination_hover"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_pagination_hover', '#d0e2ff')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_hover')); ?>">
 					</td>
 				</tr>
 				<tr>
 					<th scope="row">Pagination Active</th>
 					<td>
 						<input type="color" name="rmu_pr_website_pagination_active"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_pagination_active', '#e0ecff')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_active')); ?>">
 					</td>
 				</tr>
 				<tr>
 					<th scope="row">Pagination Active Text</th>
 					<td>
 						<input type="color" name="rmu_pr_website_pagination_active_text"
-							value="<?php echo esc_attr(get_option('rmu_pr_website_pagination_active_text', '#2874fc')); ?>">
+							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_active_text')); ?>">
 					</td>
 				</tr>
 				<tr valign="top">
@@ -237,6 +266,7 @@ function rmu_pr_website_settings_page()
 			<?php submit_button(); ?>
 		</form>
 		<form method="post" style="margin-top:1em;">
+			<?php wp_nonce_field('rmu_pr_website_reset_defaults'); ?>
 			<input type="hidden" name="rmu_pr_website_reset_defaults" value="1">
 			<button type="submit" class="button button-secondary"
 				onclick="return confirm('ต้องการรีเซ็ตค่ากลับเป็นค่าเริ่มต้นหรือไม่?')">Reset Default</button>
@@ -252,15 +282,24 @@ function rmu_pr_website_settings_page()
 }
 
 add_action('admin_init', function () {
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_tab_active_color');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_tab_text_color');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_pagination_bg');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_pagination_hover');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_pagination_active');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_pagination_active_text');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_hide_input');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_category_slugs');
-	register_setting('rmu_pr_website_options', 'rmu_pr_website_base_url');
+	foreach (rmu_pr_website_color_defaults() as $option => $default) {
+		register_setting('rmu_pr_website_options', $option, array(
+			'sanitize_callback' => function ($value) use ($default) {
+				return sanitize_hex_color((string) $value) ?: $default;
+			},
+		));
+	}
+	register_setting('rmu_pr_website_options', 'rmu_pr_website_hide_input', array(
+		'sanitize_callback' => 'rest_sanitize_boolean',
+	));
+	register_setting('rmu_pr_website_options', 'rmu_pr_website_category_slugs', array(
+		'sanitize_callback' => 'sanitize_text_field',
+	));
+	register_setting('rmu_pr_website_options', 'rmu_pr_website_base_url', array(
+		'sanitize_callback' => function ($value) {
+			return esc_url_raw(trim((string) $value), array('http', 'https')) ?: 'https://pr.rmu.ac.th/';
+		},
+	));
 });
 /**
  * GitHub Update Checker
@@ -429,16 +468,14 @@ class RMU_PR_GitHub_Updater
 new RMU_PR_GitHub_Updater(__FILE__);
 
 add_action('wp_head', function () {
-	$active_tab = esc_attr(get_option('rmu_pr_website_tab_active_color', '#e0ecff'));
-	$text_tab = esc_attr(get_option('rmu_pr_website_tab_text_color', '#2874fc'));
-	$bg_pagination = esc_attr(get_option('rmu_pr_website_pagination_bg', '#e0ecff'));
-	$hover_pagination = esc_attr(get_option('rmu_pr_website_pagination_hover', '#d0e2ff'));
-	$active_pagination = esc_attr(get_option('rmu_pr_website_pagination_active', '#fff'));
-	$active_text_pagination = esc_attr(get_option('rmu_pr_website_pagination_active_text', '#2874fc'));
+	$active_tab = rmu_pr_website_get_color('rmu_pr_website_tab_active_color');
+	$text_tab = rmu_pr_website_get_color('rmu_pr_website_tab_text_color');
+	$bg_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_bg');
+	$hover_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_hover');
+	$active_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_active');
+	$active_text_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_active_text');
+	// แท็บที่ไม่ได้เลือกใช้สีพื้นจาก style.scss ไม่ผูกกับ Pagination Background
 	echo "<style>
-	.our-search .tab {
-			background-color: {$bg_pagination};
-		}
         .our-search .tab.active,
         .our-search .tab:hover,
         .our-search .tab:focus  {

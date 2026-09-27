@@ -8,6 +8,9 @@ const BASE_URL = window.POSTS_PR_RMU_DATA?.baseUrl || "https://pr.rmu.ac.th/";
 // ต้องมี _links และ _embedded ด้วย ไม่งั้น _embed จะไม่ทำงาน
 const POST_FIELDS = "id,link,title,excerpt,_links,_embedded";
 
+// รอให้หยุดพิมพ์ก่อนค่อยค้นหา ไม่ยิง request ทุกตัวอักษร
+const SEARCH_DEBOUNCE_MS = 300;
+
 // cache id ของหมวดหมู่ ไม่ต้องยิง request ซ้ำทุกครั้งที่พิมพ์ค้นหาหรือเปลี่ยนหน้า
 // (ต้องประกาศก่อน bringSearchToLife ถูกเรียกด้านล่าง)
 const categoryIdCache = new Map();
@@ -20,8 +23,8 @@ function buildApiUrl(path, params = {}) {
 	return `${base}/?rest_route=/wp/v2/${path}${qs ? `&${qs}` : ""}`;
 }
 
-async function fetchJson(url) {
-	const res = await fetch(url);
+async function fetchJson(url, signal) {
+	const res = await fetch(url, { signal });
 	if (!res.ok) {
 		throw new Error(`HTTP ${res.status} ${url}`);
 	}
@@ -57,22 +60,29 @@ function bringSearchToLife(el) {
 		tabsContainer.appendChild(tab);
 	});
 
-	let currentPage = 1;
+	let controller = null;
+	let debounceTimer;
 
-	function refreshResults() {
+	function loadPosts(page) {
 		const activeTab = tabsContainer.querySelector(".tab.active");
-		if (activeTab) {
-			fetchAndRenderPosts(
-				activeTab.dataset.slug,
-				input ? input.value.trim() : "",
-				resultsContainer,
-				currentPage,
-				paginationContainer,
-			);
-		}
+		if (!activeTab) return;
+
+		// ยกเลิก request ก่อนหน้า ไม่ให้ response ที่มาช้ามาทับผลล่าสุด
+		controller?.abort();
+		controller = new AbortController();
+
+		fetchAndRenderPosts({
+			slug: activeTab.dataset.slug,
+			searchTerm: input ? input.value.trim() : "",
+			page,
+			container: resultsContainer,
+			paginationContainer,
+			signal: controller.signal,
+			onPageClick: loadPosts,
+		});
 	}
 
-	refreshResults(); // Initial load
+	loadPosts(1); // Initial load
 
 	tabsContainer.querySelectorAll(".tab").forEach((tab) => {
 		tab.addEventListener("click", () => {
@@ -80,28 +90,31 @@ function bringSearchToLife(el) {
 				.querySelectorAll(".tab")
 				.forEach((t) => t.classList.remove("active"));
 			tab.classList.add("active");
-			currentPage = 1;
-			refreshResults();
+			loadPosts(1);
 		});
 	});
 
 	if (input) {
 		input.addEventListener("input", () => {
-			currentPage = 1;
-			refreshResults();
+			clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(() => loadPosts(1), SEARCH_DEBOUNCE_MS);
 		});
 	}
 }
 
-async function fetchAndRenderPosts(
+async function fetchAndRenderPosts({
 	slug,
 	searchTerm,
+	page,
 	container,
-	page = 1,
 	paginationContainer,
-) {
+	signal,
+	onPageClick,
+}) {
 	try {
+		// ไม่ส่ง signal ให้ request หมวดหมู่ เพราะ promise นี้ถูก cache และแชร์กันทุก instance
 		const catId = await getCategoryIdBySlug(slug);
+		if (signal.aborted) return;
 		if (!catId) {
 			container.innerHTML = "ไม่พบหมวดหมู่";
 			return;
@@ -116,25 +129,19 @@ async function fetchAndRenderPosts(
 			_fields: POST_FIELDS,
 		});
 
-		const { data: posts, res } = await fetchJson(query);
+		const { data: posts, res } = await fetchJson(query, signal);
 		const totalPages = parseInt(res.headers.get("X-WP-TotalPages")) || 1;
 
 		if (posts.length) {
 			container.innerHTML = generateHTML(posts);
-			renderPagination(paginationContainer, totalPages, page, (newPage) => {
-				fetchAndRenderPosts(
-					slug,
-					searchTerm,
-					container,
-					newPage,
-					paginationContainer,
-				);
-			});
+			renderPagination(paginationContainer, totalPages, page, onPageClick);
 		} else {
 			container.innerHTML = "ไม่พบโพสต์ในหมวดนี้";
 			paginationContainer.innerHTML = "";
 		}
 	} catch (error) {
+		// ถูกยกเลิกเพราะมี request ใหม่กว่าเข้ามา ไม่ใช่ error จริง
+		if (signal.aborted) return;
 		console.error("Error fetching posts:", error);
 		container.innerHTML = "เกิดข้อผิดพลาดในการโหลดโพสต์";
 	}
@@ -172,6 +179,8 @@ function generateHTML(posts) {
         `;
 			})
 			.join(""),
+		// DOMPurify ลบ target ทิ้งโดย default ต้องอนุญาตเอง ไม่งั้นลิงก์จะไม่เปิดแท็บใหม่
+		{ ADD_ATTR: ["target"] },
 	);
 }
 function renderPagination(container, totalPages, currentPage, onPageClick) {
