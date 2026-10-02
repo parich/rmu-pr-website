@@ -14,6 +14,14 @@
  * Version: 0.1.2
 ```
 
+และแก้ `"version"` ใน `src/rmu-pr-website/block.json` ให้ตรงกัน:
+
+```json
+"version": "0.1.2",
+```
+
+> ค่านี้คือ `?ver=` ของไฟล์ CSS ถ้าไม่เปลี่ยน browser/CDN อาจใช้ CSS ตัวเก่าที่ cache ไว้กับ JS ตัวใหม่ หน้าตาจะเพี้ยน
+
 > **หลักการตั้ง version (Semantic Versioning):**
 > - `MAJOR.MINOR.PATCH` เช่น `1.2.3`
 > - **PATCH** (`0.1.x`) — แก้ bug เล็กน้อย ไม่กระทบการใช้งาน

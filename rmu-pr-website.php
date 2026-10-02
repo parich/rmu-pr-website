@@ -3,7 +3,7 @@
  * Plugin Name:       RMU PR Website
  * Plugin URI:        https://github.com/parich/rmu-pr-website
  * Description:       แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.
- * Version:           0.1.3
+ * Version:           0.2.0
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Author:            Mr.Parich Suriya
@@ -61,23 +61,24 @@ function create_block_rmu_pr_website_block_init()
 }
 add_action('init', 'create_block_rmu_pr_website_block_init');
 
-// handle ของ view.js ที่ WordPress ลงทะเบียนให้จาก block.json ใช้ตัวเดียวกันทั้ง block และ shortcode
-// เพื่อให้ทั้งสองแบบได้ข้อมูลตั้งค่าชุดเดียวกัน และ view.js ไม่ถูกโหลดซ้ำเมื่อหน้าเดียวกันมีทั้งสองแบบ
+// handle ของ view.js / style-index.css ที่ WordPress ลงทะเบียนให้จาก block.json ใช้ตัวเดียวกันทั้ง block และ shortcode
+// เพื่อให้ทั้งสองแบบได้ข้อมูลตั้งค่าชุดเดียวกัน และไม่ถูกโหลดซ้ำเมื่อหน้าเดียวกันมีทั้งสองแบบ
+// (?ver= ของ CSS มาจาก "version" ใน block.json ต้องเปลี่ยนทุกครั้งที่ออกเวอร์ชัน ดู RELEASE.md)
 function rmu_pr_website_view_script_handle()
 {
 	return generate_block_asset_handle('create-block/rmu-pr-website', 'viewScript');
 }
 
+function rmu_pr_website_style_handle()
+{
+	return generate_block_asset_handle('create-block/rmu-pr-website', 'style');
+}
+
 // ฟังก์ชันนี้ใช้สำหรับการโหลดไฟล์ JavaScript และ CSS ที่จำเป็นสำหรับ block
 function rmu_pr_website_enqueue_assets()
 {
-	// ใช้ version ตามเนื้อหาไฟล์ (?ver=) เพื่อให้ browser โหลดไฟล์ใหม่ทุกครั้งที่ build ใหม่ ไม่ติด cache ตัวเก่า
-	wp_register_style(
-		'rmu-pr-website-style',
-		plugins_url('build/rmu-pr-website/style-index.css', __FILE__),
-		array(),
-		filemtime(__DIR__ . '/build/rmu-pr-website/style-index.css')
-	);
+	// สีและขนาดตัวอักษรจากหน้าตั้งค่า พิมพ์ต่อท้าย CSS ของ block เฉพาะหน้าที่โหลด CSS นั้นจริง
+	wp_add_inline_style(rmu_pr_website_style_handle(), rmu_pr_website_inline_css());
 
 	// ดึงค่าตัวเลือกจากฐานข้อมูล
 	$category_slugs = get_option('rmu_pr_website_category_slugs', '');
@@ -103,7 +104,7 @@ add_action('wp_enqueue_scripts', 'rmu_pr_website_enqueue_assets');
 
 function rmu_pr_website_enqueue_shortcode_assets()
 {
-	wp_enqueue_style('rmu-pr-website-style');
+	wp_enqueue_style(rmu_pr_website_style_handle());
 	wp_enqueue_script(rmu_pr_website_view_script_handle());
 }
 
@@ -128,17 +129,21 @@ function rmu_pr_website_shortcode($atts)
 }
 add_shortcode('rmu_pr_website', 'rmu_pr_website_shortcode');
 
+// สีตัวอักษรของแท็บที่ไม่ได้เลือกและเลขหน้า (ตายตัว ตรงกับ --rmu-pr-text ใน style.scss) ใช้ตรวจคอนทราสต์กับสีพื้นที่ตั้งได้
+const RMU_PR_WEBSITE_TEXT_COLOR = '#1e293b';
+
 // ค่าเริ่มต้นของสี ใช้ร่วมกันทั้งฟอร์ม, ปุ่ม Reset, sanitize และ CSS หน้าเว็บ
 // ต้องเป็น hex 6 หลัก เพราะ <input type="color"> ไม่รับรูปแบบอื่น (#eee จะแสดงเป็นสีดำ)
+// ทุกคู่ตัวอักษร/พื้นผ่าน WCAG AA (อย่างน้อย 4.5:1) — ตรวจได้ที่หน้าตั้งค่า
 function rmu_pr_website_color_defaults()
 {
 	return array(
 		'rmu_pr_website_tab_active_color' => '#e0ecff',
-		'rmu_pr_website_tab_text_color' => '#2874fc',
+		'rmu_pr_website_tab_text_color' => '#1d4ed8',
 		'rmu_pr_website_pagination_bg' => '#eeeeee',
 		'rmu_pr_website_pagination_hover' => '#d0e2ff',
 		'rmu_pr_website_pagination_active' => '#e0ecff',
-		'rmu_pr_website_pagination_active_text' => '#2874fc',
+		'rmu_pr_website_pagination_active_text' => '#1d4ed8',
 	);
 }
 
@@ -148,6 +153,118 @@ function rmu_pr_website_get_color($option)
 	$defaults = rmu_pr_website_color_defaults();
 	return sanitize_hex_color(get_option($option, '')) ?: $defaults[$option];
 }
+
+// ขนาดตัวอักษร (px) — เก็บเป็น px เพราะกรอกง่าย แต่พิมพ์ออกเป็น rem
+// เพื่อให้ขยายตามขนาดตัวอักษรที่ผู้ใช้ตั้งไว้ใน browser (WCAG 1.4.4)
+function rmu_pr_website_font_size_defaults()
+{
+	return array(
+		'rmu_pr_website_tab_font_size' => 16,
+		'rmu_pr_website_title_font_size' => 16,
+		'rmu_pr_website_excerpt_font_size' => 14,
+	);
+}
+
+// รับเฉพาะ 10–40px ค่านอกช่วงหรือไม่ใช่ตัวเลขใช้ค่าเริ่มต้นแทน
+function rmu_pr_website_valid_font_size($value, $default)
+{
+	$px = absint($value);
+	return ($px >= 10 && $px <= 40) ? $px : $default;
+}
+
+function rmu_pr_website_get_font_size($option)
+{
+	$defaults = rmu_pr_website_font_size_defaults();
+	return rmu_pr_website_valid_font_size(get_option($option, $defaults[$option]), $defaults[$option]);
+}
+
+// %F ไม่ขึ้นกับ locale (PHP 7.4 อาจพิมพ์ทศนิยมเป็น , ตาม locale ของ server)
+function rmu_pr_website_px_to_rem($px)
+{
+	return rtrim(rtrim(sprintf('%.4F', $px / 16), '0'), '.') . 'rem';
+}
+
+// ค่าเริ่มต้น 500 เพราะ 600 (ค่าของหัวข้อในหลายธีม) ดูหนามากกับฟอนต์ไทยแบบมีหัว
+function rmu_pr_website_font_weights()
+{
+	return array(
+		300 => 'บาง (300)',
+		400 => 'ปกติ (400)',
+		500 => 'กลาง (500)',
+		600 => 'ค่อนข้างหนา (600)',
+		700 => 'หนา (700)',
+	);
+}
+
+function rmu_pr_website_valid_font_weight($value)
+{
+	$weight = absint($value);
+	return array_key_exists($weight, rmu_pr_website_font_weights()) ? $weight : 500;
+}
+
+// ค่าที่ตั้งไว้ทั้งหมดในรูป CSS custom properties (ทุกค่าผ่านการตรวจแล้ว: hex หรือตัวเลข จึงพิมพ์ลง <style> ได้ปลอดภัย)
+function rmu_pr_website_inline_css()
+{
+	$vars = array(
+		'--rmu-pr-tab-active-bg' => rmu_pr_website_get_color('rmu_pr_website_tab_active_color'),
+		'--rmu-pr-tab-active-text' => rmu_pr_website_get_color('rmu_pr_website_tab_text_color'),
+		'--rmu-pr-pagination-bg' => rmu_pr_website_get_color('rmu_pr_website_pagination_bg'),
+		'--rmu-pr-pagination-hover' => rmu_pr_website_get_color('rmu_pr_website_pagination_hover'),
+		'--rmu-pr-pagination-active-bg' => rmu_pr_website_get_color('rmu_pr_website_pagination_active'),
+		'--rmu-pr-pagination-active-text' => rmu_pr_website_get_color('rmu_pr_website_pagination_active_text'),
+		'--rmu-pr-tab-font-size' => rmu_pr_website_px_to_rem(rmu_pr_website_get_font_size('rmu_pr_website_tab_font_size')),
+		'--rmu-pr-title-font-size' => rmu_pr_website_px_to_rem(rmu_pr_website_get_font_size('rmu_pr_website_title_font_size')),
+		'--rmu-pr-title-font-weight' => rmu_pr_website_valid_font_weight(get_option('rmu_pr_website_title_font_weight', 500)),
+		'--rmu-pr-excerpt-font-size' => rmu_pr_website_px_to_rem(rmu_pr_website_get_font_size('rmu_pr_website_excerpt_font_size')),
+	);
+	$css = '';
+	foreach ($vars as $name => $value) {
+		$css .= "{$name}:{$value};";
+	}
+	return ".our-search{{$css}}";
+}
+
+// อัตราคอนทราสต์ตามสูตร WCAG 2.x (1 ถึง 21)
+function rmu_pr_website_contrast_ratio($hex_a, $hex_b)
+{
+	$luminance = function ($hex) {
+		$channels = array_map(function ($pair) {
+			$c = hexdec($pair) / 255;
+			return $c <= 0.03928 ? $c / 12.92 : pow(($c + 0.055) / 1.055, 2.4);
+		}, str_split(ltrim($hex, '#'), 2));
+		return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
+	};
+	$a = $luminance($hex_a);
+	$b = $luminance($hex_b);
+	return (max($a, $b) + 0.05) / (min($a, $b) + 0.05);
+}
+
+// คู่สีที่ต้องตรวจ: ตัวอักษรบนพื้นต้องอย่างน้อย 4.5:1, กรอบโฟกัสบนพื้นขาวอย่างน้อย 3:1
+function rmu_pr_website_contrast_checks()
+{
+	$tab_text = rmu_pr_website_get_color('rmu_pr_website_tab_text_color');
+	return array(
+		array('แท็บที่เลือก / ชี้: Tab Text บน Tab Active', $tab_text, rmu_pr_website_get_color('rmu_pr_website_tab_active_color'), 4.5),
+		array('เลขหน้า: ตัวอักษร (' . RMU_PR_WEBSITE_TEXT_COLOR . ') บน Pagination Background', RMU_PR_WEBSITE_TEXT_COLOR, rmu_pr_website_get_color('rmu_pr_website_pagination_bg'), 4.5),
+		array('เลขหน้าที่ชี้: ตัวอักษร (' . RMU_PR_WEBSITE_TEXT_COLOR . ') บน Pagination Hover', RMU_PR_WEBSITE_TEXT_COLOR, rmu_pr_website_get_color('rmu_pr_website_pagination_hover'), 4.5),
+		array('หน้าปัจจุบัน: Pagination Active Text บน Pagination Active', rmu_pr_website_get_color('rmu_pr_website_pagination_active_text'), rmu_pr_website_get_color('rmu_pr_website_pagination_active'), 4.5),
+		array('กรอบโฟกัส (ใช้สี Tab Text) บนพื้นขาว', $tab_text, '#ffffff', 3),
+	);
+}
+
+// ค่าเริ่มต้นเดิม #2874fc บน #e0ecff ได้แค่ 3.5:1 ไม่ผ่าน WCAG — เว็บที่ยังใช้ค่าเดิมอยู่เปลี่ยนเป็นค่าใหม่ให้ครั้งเดียว
+// สีที่ผู้ดูแลเลือกเอง (ไม่ตรงกับค่าเดิม) ไม่แตะ ใช้ init เพราะการอัปเดตผ่าน GitHub ไม่เรียก activation hook
+add_action('init', function () {
+	if ((int) get_option('rmu_pr_website_data_version', 0) >= 1) {
+		return;
+	}
+	foreach (array('rmu_pr_website_tab_text_color', 'rmu_pr_website_pagination_active_text') as $option) {
+		if (strtolower((string) get_option($option, '')) === '#2874fc') {
+			update_option($option, '#1d4ed8');
+		}
+	}
+	update_option('rmu_pr_website_data_version', 1);
+});
 
 add_action('admin_menu', function () {
 	add_options_page(
@@ -163,9 +280,10 @@ function rmu_pr_website_settings_page()
 {
 	// ตรวจสอบการกดปุ่ม Reset (ต้องผ่าน nonce กันเว็บอื่นส่ง form มาแทน admin ที่ login อยู่)
 	if (isset($_POST['rmu_pr_website_reset_defaults']) && check_admin_referer('rmu_pr_website_reset_defaults')) {
-		foreach (rmu_pr_website_color_defaults() as $option => $default) {
+		foreach (rmu_pr_website_color_defaults() + rmu_pr_website_font_size_defaults() as $option => $default) {
 			update_option($option, $default);
 		}
+		update_option('rmu_pr_website_title_font_weight', 500);
 		echo '<div class="notice notice-success is-dismissible"><p>รีเซ็ตค่าสำเร็จ</p></div>';
 	}
 	?>
@@ -178,57 +296,96 @@ function rmu_pr_website_settings_page()
 			?>
 			<table class="form-table">
 				<tr>
-					<th scope="row">ซ่อนช่องค้นหา (Hide Input Search)</th>
+					<th scope="row"><label for="rmu_pr_website_hide_input">ซ่อนช่องค้นหา (Hide Input Search)</label></th>
 					<td>
-						<input type="checkbox" name="rmu_pr_website_hide_input" value="1" <?php checked(get_option('rmu_pr_website_hide_input', false)); ?>>
+						<input type="checkbox" id="rmu_pr_website_hide_input" name="rmu_pr_website_hide_input" value="1" <?php checked(get_option('rmu_pr_website_hide_input', false)); ?>>
 					</td>
 				</tr>
+				<?php
+				$color_labels = array(
+					'rmu_pr_website_tab_active_color' => 'Tab Active Color',
+					'rmu_pr_website_tab_text_color' => 'Tab Text Color',
+					'rmu_pr_website_pagination_bg' => 'Pagination Background',
+					'rmu_pr_website_pagination_hover' => 'Pagination Hover',
+					'rmu_pr_website_pagination_active' => 'Pagination Active',
+					'rmu_pr_website_pagination_active_text' => 'Pagination Active Text',
+				);
+				foreach ($color_labels as $option => $label): ?>
+					<tr>
+						<th scope="row"><label for="<?php echo esc_attr($option); ?>"><?php echo esc_html($label); ?></label></th>
+						<td>
+							<input type="color" id="<?php echo esc_attr($option); ?>" name="<?php echo esc_attr($option); ?>"
+								value="<?php echo esc_attr(rmu_pr_website_get_color($option)); ?>">
+						</td>
+					</tr>
+				<?php endforeach; ?>
 				<tr>
-					<th scope="row">Tab Active Color</th>
+					<th scope="row">ตรวจคอนทราสต์ (WCAG 2.1 AA)</th>
 					<td>
-						<input type="color" name="rmu_pr_website_tab_active_color"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_tab_active_color')); ?>">
+						<table class="widefat striped" style="max-width:640px">
+							<thead>
+								<tr>
+									<th scope="col">คู่สี</th>
+									<th scope="col">ตัวอย่าง</th>
+									<th scope="col">คอนทราสต์</th>
+									<th scope="col">ผล</th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach (rmu_pr_website_contrast_checks() as list($label, $fg, $bg, $min)):
+									$ratio = rmu_pr_website_contrast_ratio($fg, $bg); ?>
+									<tr>
+										<td><?php echo esc_html($label); ?></td>
+										<td><span style="display:inline-block;padding:2px 10px;border:1px solid #8c8f94;color:<?php echo esc_attr($fg); ?>;background:<?php echo esc_attr($bg); ?>">ตัวอย่าง 12</span></td>
+										<td><?php echo esc_html(sprintf('%.2F:1', $ratio)); ?></td>
+										<td>
+											<?php if ($ratio >= $min): ?>
+												<strong>✓ ผ่าน</strong>
+											<?php else: ?>
+												<strong style="color:#b32d2e">✗ ไม่ผ่าน</strong> (ต้องอย่างน้อย <?php echo esc_html($min); ?>:1)
+											<?php endif; ?>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+						<p class="description">คำนวณจากค่าที่บันทึกแล้ว เปลี่ยนสีแล้วกด Save Changes เพื่อดูผลใหม่</p>
 					</td>
 				</tr>
+				<?php
+				$font_size_labels = array(
+					'rmu_pr_website_tab_font_size' => 'ขนาดตัวอักษรแท็บหมวดหมู่',
+					'rmu_pr_website_title_font_size' => 'ขนาดตัวอักษรหัวข้อข่าว',
+					'rmu_pr_website_excerpt_font_size' => 'ขนาดตัวอักษรคำโปรย',
+				);
+				foreach ($font_size_labels as $option => $label): ?>
+					<tr>
+						<th scope="row"><label for="<?php echo esc_attr($option); ?>"><?php echo esc_html($label); ?></label></th>
+						<td>
+							<input type="number" id="<?php echo esc_attr($option); ?>" name="<?php echo esc_attr($option); ?>"
+								min="10" max="40" step="1" class="small-text" aria-describedby="rmu_pr_website_font_size_note"
+								value="<?php echo esc_attr(rmu_pr_website_get_font_size($option)); ?>"> px
+						</td>
+					</tr>
+				<?php endforeach; ?>
 				<tr>
-					<th scope="row">Tab Text Color</th>
+					<th scope="row"><label for="rmu_pr_website_title_font_weight">ความหนาหัวข้อข่าว</label></th>
 					<td>
-						<input type="color" name="rmu_pr_website_tab_text_color"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_tab_text_color')); ?>">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Pagination Background</th>
-					<td>
-						<input type="color" name="rmu_pr_website_pagination_bg"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_bg')); ?>">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Pagination Hover</th>
-					<td>
-						<input type="color" name="rmu_pr_website_pagination_hover"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_hover')); ?>">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Pagination Active</th>
-					<td>
-						<input type="color" name="rmu_pr_website_pagination_active"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_active')); ?>">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row">Pagination Active Text</th>
-					<td>
-						<input type="color" name="rmu_pr_website_pagination_active_text"
-							value="<?php echo esc_attr(rmu_pr_website_get_color('rmu_pr_website_pagination_active_text')); ?>">
+						<select id="rmu_pr_website_title_font_weight" name="rmu_pr_website_title_font_weight">
+							<?php foreach (rmu_pr_website_font_weights() as $weight => $label): ?>
+								<option value="<?php echo esc_attr($weight); ?>" <?php selected(rmu_pr_website_valid_font_weight(get_option('rmu_pr_website_title_font_weight', 500)), $weight); ?>><?php echo esc_html($label); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<p class="description" id="rmu_pr_website_font_size_note">
+							ขนาดตัวอักษร 10–40 px (16 px = ขนาดปกติของ browser) แสดงผลเป็นหน่วย rem จึงขยายตามที่ผู้ใช้ตั้งขนาดตัวอักษรไว้ใน browser<br>
+							แบบอักษรใช้ของธีม ถ้าหัวข้อดูหนาเกินไปให้เลือก 400 หรือ 500
+						</p>
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row">Category Slugs</th>
+					<th scope="row"><label for="rmu_pr_website_category_slugs">Category Slugs</label></th>
 					<td>
-						<input type="text" name="rmu_pr_website_category_slugs"
+						<input type="text" id="rmu_pr_website_category_slugs" name="rmu_pr_website_category_slugs"
 							value="<?php echo esc_attr(get_option('rmu_pr_website_category_slugs', '')); ?>" />
 						<p class="description">
 							ใส่ slug หมวดหมู่ คั่นด้วย comma เช่น <code>news,activity,announce</code> หรือภาษาไทย เช่น
@@ -249,9 +406,9 @@ function rmu_pr_website_settings_page()
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row">Base URL</th>
+					<th scope="row"><label for="rmu_pr_website_base_url">Base URL</label></th>
 					<td>
-						<input type="text" name="rmu_pr_website_base_url"
+						<input type="text" id="rmu_pr_website_base_url" name="rmu_pr_website_base_url"
 							value="<?php echo esc_attr(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/')); ?>" />
 						<?php $check_url = rtrim(get_option('rmu_pr_website_base_url', 'https://pr.rmu.ac.th/'), '/') . '/?rest_route=/wp/v2/posts&per_page=1&_fields=id,link,title'; ?>
 						<p class="description">
@@ -289,6 +446,18 @@ add_action('admin_init', function () {
 			},
 		));
 	}
+	foreach (rmu_pr_website_font_size_defaults() as $option => $default) {
+		register_setting('rmu_pr_website_options', $option, array(
+			'type' => 'integer',
+			'sanitize_callback' => function ($value) use ($default) {
+				return rmu_pr_website_valid_font_size($value, $default);
+			},
+		));
+	}
+	register_setting('rmu_pr_website_options', 'rmu_pr_website_title_font_weight', array(
+		'type' => 'integer',
+		'sanitize_callback' => 'rmu_pr_website_valid_font_weight',
+	));
 	register_setting('rmu_pr_website_options', 'rmu_pr_website_hide_input', array(
 		'sanitize_callback' => 'rest_sanitize_boolean',
 	));
@@ -466,31 +635,3 @@ class RMU_PR_GitHub_Updater
 }
 
 new RMU_PR_GitHub_Updater(__FILE__);
-
-add_action('wp_head', function () {
-	$active_tab = rmu_pr_website_get_color('rmu_pr_website_tab_active_color');
-	$text_tab = rmu_pr_website_get_color('rmu_pr_website_tab_text_color');
-	$bg_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_bg');
-	$hover_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_hover');
-	$active_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_active');
-	$active_text_pagination = rmu_pr_website_get_color('rmu_pr_website_pagination_active_text');
-	// แท็บที่ไม่ได้เลือกใช้สีพื้นจาก style.scss ไม่ผูกกับ Pagination Background
-	echo "<style>
-        .our-search .tab.active,
-        .our-search .tab:hover,
-        .our-search .tab:focus  {
-            background-color: {$active_tab} !important;
-            color: {$text_tab} !important;
-        }
-        .our-search #pagination .pagination-btn {
-            background: {$bg_pagination};
-        }
-        .our-search #pagination .pagination-btn:hover {
-            background-color: {$hover_pagination};
-        }
-        .our-search #pagination .pagination-btn.active {
-            background-color: {$active_pagination};
-            color: {$active_text_pagination};
-        }
-    </style>";
-});

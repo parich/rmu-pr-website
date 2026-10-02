@@ -5,11 +5,11 @@ return array(
 		'$schema' => 'https://schemas.wp.org/trunk/block.json',
 		'apiVersion' => 3,
 		'name' => 'create-block/rmu-pr-website',
-		'version' => '0.1.0',
+		'version' => '0.2.0',
 		'title' => 'RMU PR Website',
 		'category' => 'widgets',
 		'icon' => 'smiley',
-		'description' => 'Example block scaffolded with Create Block tool.',
+		'description' => 'แสดงข่าวจากเว็บไซต์ มหาวิทยาลัย.',
 		'example' => array(
 			
 		),

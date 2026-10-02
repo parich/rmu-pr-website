@@ -1,178 +1,329 @@
-// file : src/post-pr-rmu/style.scss
+// file : src/rmu-pr-website/style.scss
 
-/**
- * The following styles get applied both on the front of your site
- * and in the editor.
- *
- * Replace them with your own styles or remove the file completely.
- */
+// ทุก selector อยู่ใต้ .our-search: ไม่ให้ไปโดน .tab / .card
+// ของธีมหรือ plugin อื่นในหน้าเดียวกัน
+// และกำหนดสี/ฟอนต์ของปุ่มเองทุกค่า เพราะแต่ละธีมตั้งค่า button ไม่เหมือนกัน
+// (Astra ให้ตัวอักษรสีขาว ทำให้แท็บ/เลขหน้าที่พื้นสีอ่อนมองไม่เห็น,
+// Twenty Twenty-Five ปล่อยเป็นฟอนต์ Arial ของ browser)
 
-#tabs {
-	margin: 1rem 0 2rem;
+.our-search {
+	// ค่าเริ่มต้น — หน้าเว็บจริงถูกแทนด้วยค่าจากหน้าตั้งค่า
+	// (rmu_pr_website_inline_css)
+	--rmu-pr-tab-active-bg: #e0ecff;
+	--rmu-pr-tab-active-text: #1d4ed8;
+	--rmu-pr-pagination-bg: #eee;
+	--rmu-pr-pagination-hover: #d0e2ff;
+	--rmu-pr-pagination-active-bg: #e0ecff;
+	--rmu-pr-pagination-active-text: #1d4ed8;
+	--rmu-pr-tab-font-size: 1rem;
+	--rmu-pr-title-font-size: 1rem;
+	--rmu-pr-title-font-weight: 500;
+	--rmu-pr-excerpt-font-size: 0.875rem;
+	// สีตัวอักษรของแท็บที่ไม่ได้เลือกและเลขหน้า
+	// (ต้องตรงกับ RMU_PR_WEBSITE_TEXT_COLOR ที่ใช้ตรวจคอนทราสต์)
+	--rmu-pr-text: #1e293b;
+	--rmu-pr-focus: var(--rmu-pr-tab-active-text);
+}
+
+// ซ่อนจากสายตาแต่โปรแกรมอ่านหน้าจอยังอ่านได้
+// (ไม่พึ่ง .screen-reader-text ของธีม เพราะบางธีมไม่มี)
+.our-search .rmu-pr-sr-only {
+	position: absolute !important;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+// ---------- ช่องค้นหา ----------
+
+.our-search input[type="search"] {
+	box-sizing: border-box;
+	width: 100%;
+	margin: 0 0 1rem;
+	padding: 12px 16px;
+	border: 1px solid #8a8f98; // คอนทราสต์ 3.25:1 กับพื้นขาว ขอบช่องกรอกต้องเห็นชัด (WCAG 1.4.11)
+	border-radius: 6px;
+	background: #fff;
+	box-shadow: none;
+	color: var(--rmu-pr-text);
+	font-family: inherit;
+	font-size: 1rem;
+	line-height: 1.5;
+	appearance: none;
+
+	&::placeholder {
+		color: #64748b;
+		opacity: 1;
+	}
+
+	&:focus {
+		border-color: var(--rmu-pr-focus);
+		outline: 3px solid var(--rmu-pr-focus);
+		outline-offset: 0;
+	}
+}
+
+// ---------- แท็บหมวดหมู่ ----------
+
+.our-search .rmu-pr-tabs {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0; // ไม่มีช่องว่างระหว่างแท็บ
 	justify-content: center;
-	// border: 1px solid #ccc;
-	// border-radius: 6px;
-	overflow: hidden;
+	margin: 0 0 2rem;
 	background: #f8fafd;
 }
 
-.tab {
+.our-search .tab {
+	margin: 0;
 	padding: 12px 28px;
-	background-color: #f8fafd;
-	border: none;
+	border: 0;
 	border-right: 1px solid #ccc;
 	border-radius: 0;
+	background: #f8fafd;
+	box-shadow: none;
+	color: var(--rmu-pr-text);
+	font-family: inherit;
+	font-size: var(--rmu-pr-tab-font-size);
 	font-weight: 500;
+	line-height: 1.5;
+	letter-spacing: normal;
+	text-transform: none;
 	cursor: pointer;
 	transition:
-		background 0.2s,
-		color 0.2s,
-		border 0.2s;
-	box-shadow: none;
-	// color: #333;
-	outline: none;
+		background-color 0.2s,
+		color 0.2s;
 
-	// ลบ border ขวาของแท็บสุดท้าย
 	&:last-child {
-		border-right: none;
+		border-right: 0;
 	}
 }
 
-.tab:hover,
-.tab:focus,
-.tab.active {
-	background-color: #e0ecff;
-	color: #2874fc;
-	z-index: 2;
+.our-search .tab:hover,
+.our-search .tab[aria-selected="true"] {
+	background: var(--rmu-pr-tab-active-bg);
+	color: var(--rmu-pr-tab-active-text);
 }
 
-@media (max-width: 600px) {
-	#tabs {
-		flex-direction: column;
-		border-radius: 8px;
-		border: 1px solid #ccc;
-		overflow: hidden;
-	}
-	.tab {
-		border-right: none;
-		border-bottom: 1px solid #ccc;
-		border-radius: 0;
-		padding: 14px 18px;
-		width: 100%;
-		text-align: left;
-		background: #f8fafd;
-		transition:
-			background 0.2s,
-			color 0.2s;
-	}
-	.tab:last-child {
-		border-bottom: none;
-	}
-	.tab.active,
-	.tab:hover,
-	.tab:focus {
-		background-color: #e0ecff;
-		color: #2874fc;
-		z-index: 2;
-	}
+// แท็บที่เลือกอยู่มีแถบสีใต้ตัวอักษรด้วย
+// ไม่บอกด้วยสีพื้นอย่างเดียว (WCAG 1.4.1)
+.our-search .tab[aria-selected="true"] {
+	box-shadow: inset 0 -3px 0 currentcolor;
 }
 
-.our-search input[type="text"] {
-	width: 100%;
-	padding: 12px 16px;
-	border: 1px solid #ccc;
-	border-radius: 6px;
-	font-size: 1rem;
-	transition:
-		border-color 0.2s,
-		box-shadow 0.2s;
-	box-sizing: border-box;
-	margin-bottom: 1rem;
+// กรอบโฟกัสวาดด้านในปุ่ม ไม่ทับแท็บข้างๆ
+.our-search .tab:focus-visible {
+	outline: 3px solid var(--rmu-pr-focus);
+	outline-offset: -3px;
 }
 
-.our-search input[type="text"]:focus {
-	border-color: #2874fc;
-	box-shadow: 0 0 0 2px rgba(40, 116, 252, 0.15);
-	outline: none;
+// ---------- การ์ดโพสต์ ----------
+
+.our-search .results {
+	color: var(--rmu-pr-text);
 }
 
-.results {
+.our-search .rmu-pr-message {
+	margin: 0;
+	padding: 1rem 0;
+	text-align: center;
+}
+
+.our-search .rmu-pr-cards {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 	gap: 1rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
-.card {
-	background: #fff;
+.our-search .card {
+	position: relative; // ให้ลิงก์ที่หัวข้อขยายครอบทั้งใบ
+	margin: 0;
+	overflow: hidden;
 	border: 1px solid #ddd;
 	border-radius: 6px;
-	text-decoration: none;
-	color: inherit;
-	overflow: hidden;
+	background: #fff;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+	color: var(--rmu-pr-text);
 	transition:
 		transform 0.2s ease,
 		box-shadow 0.3s ease;
 }
 
-.card:hover {
+.our-search .card:hover {
 	transform: translateY(-4px);
 	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
-.card-image {
+// กรอบโฟกัสแสดงรอบการ์ดทั้งใบ แทนกรอบเล็กๆ รอบหัวข้อ
+.our-search .card:focus-within {
+	outline: 3px solid var(--rmu-pr-focus);
+	outline-offset: 2px;
+}
+
+.our-search .card-image {
+	display: block;
 	width: 100%;
 	height: 180px;
 	object-fit: cover;
 }
 
-.card-body {
+.our-search .card-body {
 	padding: 1rem;
 }
 
-.card-title {
-	font-size: 1rem;
-	margin-bottom: 0.5rem;
+// ไม่กำหนด font-family: ใช้ฟอนต์หัวข้อของธีม
+// แต่กำหนดขนาด/ความหนาเองจากหน้าตั้งค่า
+.our-search .card-title {
+	margin: 0 0 0.5rem;
+	color: inherit;
+	font-size: var(--rmu-pr-title-font-size);
+	font-weight: var(--rmu-pr-title-font-weight);
+	line-height: 1.5; // ภาษาไทยต้องมีที่ให้สระบน/ล่างและวรรณยุกต์ ไม่ให้บรรทัดชนกัน
+	letter-spacing: normal;
+	text-transform: none;
 }
 
-.card-excerpt {
-	font-size: 0.875rem;
+.our-search .card-title a {
+	color: inherit;
+	text-decoration: none;
+
+	&::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+	}
+
+	&:focus {
+		outline: none;
+	}
+}
+
+.our-search .card:hover .card-title a {
+	text-decoration: underline;
+}
+
+.our-search .card-excerpt {
 	color: #555;
+	font-size: var(--rmu-pr-excerpt-font-size);
+	line-height: 1.6;
+
+	p {
+		margin: 0;
+		color: inherit;
+		font-size: inherit;
+		line-height: inherit;
+	}
 }
 
-#pagination {
-	margin-top: 1.5rem;
+// ---------- เลขหน้า ----------
+
+.our-search .rmu-pr-pagination {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	justify-content: center;
+	margin-top: 1.5rem;
 }
 
-/* pagination buttons */
-.pagination-btn {
-	background: #eee;
-	border: 1px solid #ccc;
-	padding: 8px 12px;
-	border-radius: 50%;
+.our-search .pagination-btn {
 	min-width: 40px;
 	min-height: 40px;
-	text-align: center;
+	margin: 0;
+	padding: 8px 12px;
+	border: 1px solid #ccc;
+	border-radius: 999px;
+	background: var(--rmu-pr-pagination-bg);
+	box-shadow: none;
+	color: var(--rmu-pr-text);
+	font-family: inherit;
+	font-size: 1rem;
+	font-weight: 600;
 	line-height: 1.2;
-	font-weight: bold;
+	letter-spacing: normal;
+	text-align: center;
+	text-transform: none;
 	cursor: pointer;
-	transition: all 0.3s ease;
+	transition:
+		background-color 0.2s,
+		border-color 0.2s;
 }
 
-.pagination-btn:hover {
-	background-color: #d0e2ff;
-	border-color: #2874fc;
+.our-search .pagination-btn:hover {
+	border-color: var(--rmu-pr-pagination-active-text);
+	background: var(--rmu-pr-pagination-hover);
+	color: var(--rmu-pr-text);
 }
 
-.pagination-btn.active {
-	background-color: #fff;
-	color: #2874fc;
-	border-color: #6392e2;
+.our-search .pagination-btn[aria-current="page"] {
+	border-color: currentcolor;
+	background: var(--rmu-pr-pagination-active-bg);
+	color: var(--rmu-pr-pagination-active-text);
+}
+
+.our-search .pagination-btn:focus-visible {
+	outline: 3px solid var(--rmu-pr-focus);
+	outline-offset: 2px;
+}
+
+// ---------- จอแคบ ----------
+
+@media (max-width: 600px) {
+
+	.our-search .rmu-pr-tabs {
+		flex-direction: column;
+		overflow: hidden;
+		border: 1px solid #ccc;
+		border-radius: 8px;
+	}
+
+	.our-search .tab {
+		width: 100%;
+		padding: 14px 18px;
+		border-right: 0;
+		border-bottom: 1px solid #ccc;
+		text-align: left;
+
+		&:last-child {
+			border-bottom: 0;
+		}
+	}
+
+	// แท็บเรียงแนวตั้ง แถบบอกแท็บที่เลือกย้ายไปด้านซ้าย
+	.our-search .tab[aria-selected="true"] {
+		box-shadow: inset 4px 0 0 currentcolor;
+	}
+}
+
+// ---------- การตั้งค่าของผู้ใช้ ----------
+
+@media (prefers-reduced-motion: reduce) {
+
+	.our-search .tab,
+	.our-search .card,
+	.our-search .pagination-btn {
+		transition: none;
+	}
+
+	.our-search .card:hover {
+		transform: none;
+	}
+}
+
+// โหมดสีตัดกันสูง (Windows High Contrast) ตัดสีพื้นและ box-shadow ทิ้ง
+// ใช้เส้นใต้บอกแท็บ/หน้าที่เลือกแทน
+@media (forced-colors: active) {
+
+	.our-search .tab[aria-selected="true"],
+	.our-search .pagination-btn[aria-current="page"] {
+		text-decoration: underline;
+		text-decoration-thickness: 3px;
+		text-underline-offset: 0.35em;
+	}
 }

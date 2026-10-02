@@ -81,6 +81,16 @@ The plugin includes an admin settings page at **Settings > RMU PR Website** with
 4. Posts are filtered by category and search terms
 5. Results are displayed with pagination
 
+### Styling and accessibility (WCAG 2.1 AA)
+
+- Every rule in `style.scss` is scoped under `.our-search`, and tabs/pagination set their own `color`, `font-family`, `line-height` etc. — themes style bare `button` differently (Astra: white text, which made inactive tabs invisible; Twenty Twenty-Five: browser Arial)
+- Settings reach the CSS as custom properties (`--rmu-pr-*`) through `wp_add_inline_style()` on the block's style handle (`rmu_pr_website_inline_css()`); the shortcode enqueues the same block handles. CSS `?ver=` comes from `version` in block.json — bump it every release
+- Font sizes are stored in px (10–40) and printed in rem; title weight is a whitelist (default 500)
+- Fixed text color `#1e293b` (`RMU_PR_WEBSITE_TEXT_COLOR` / `--rmu-pr-text`); the settings page shows a contrast table for each configurable color pair
+- `view.js`: ARIA tabs (`role=tablist/tab/tabpanel`, roving tabindex, arrow keys move focus, Enter/Space selects), pagination in `<nav>` with `aria-label`/`aria-current`, focus moves to the results after a page change, a `role="status"` region announces result counts, card link is the title only (stretched over the card), images `alt=""`
+- `rmu_pr_website_data_version` migrates the old failing default `#2874fc` to `#1d4ed8` once
+- `uninstall.php` deletes every `rmu_pr_website_*` option and transient
+
 ## Coding Standards
 
 - Follows WordPress coding standards (.editorconfig configured)
